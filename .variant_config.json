@@ -1,0 +1,11 @@
+{
+  "student_id": "finaltest_lab6",
+  "variant_seed": 3146436446036140287,
+  "group_id": 7,
+  "parameters": {
+    "project_name": "Zinc Creek Project",
+    "num_drillholes": 5,
+    "target_grade": 2.18,
+    "num_samples": 342
+  }
+}
