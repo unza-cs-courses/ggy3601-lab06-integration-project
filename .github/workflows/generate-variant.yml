@@ -1,0 +1,84 @@
+name: Generate Student Variant
+
+on:
+  create:
+
+# Variant strategy configuration (edit these values to change behavior)
+env:
+  VARIANT_STRATEGY: "grouped"   # Options: unique, grouped, hybrid
+  VARIANT_GROUPS: "10"          # Number of groups (for grouped/hybrid)
+  ASSIGNMENT_ID: "lab06"        # Assignment identifier
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    if: github.event.ref_type == 'branch' && github.event.ref == 'main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Extract Student Username
+        id: student
+        run: |
+          # Repo name format: ggy3601-lab06-...-username
+          REPO_NAME="${{ github.event.repository.name }}"
+          USERNAME="${REPO_NAME##*-}"
+          echo "username=${USERNAME}" >> $GITHUB_OUTPUT
+          echo "Detected student: ${USERNAME}"
+
+      - name: Generate Variant Config
+        run: |
+          python scripts/variant_generator.py \
+            --assignment "${{ env.ASSIGNMENT_ID }}" \
+            --student "${{ steps.student.outputs.username }}" \
+            --strategy "${{ env.VARIANT_STRATEGY }}" \
+            --groups "${{ env.VARIANT_GROUPS }}" \
+            --output config > .variant_config.json
+
+          echo "Generated variant for ${{ steps.student.outputs.username }}:"
+          echo "Strategy: ${{ env.VARIANT_STRATEGY }}"
+          cat .variant_config.json
+
+      - name: Update Assignment README
+        run: |
+          python -c "
+          import json
+
+          with open('.variant_config.json') as f:
+              config = json.load(f)
+
+          params = config['parameters']
+
+          # Read template and fill in variant values
+          with open('README_TEMPLATE.md') as f:
+              template = f.read()
+
+          # Replace all parameter placeholders
+          for key, value in params.items():
+              placeholder = '{' + key + '}'
+              if isinstance(value, list):
+                  value_str = ', '.join(str(v) for v in value)
+              elif isinstance(value, dict):
+                  value_str = json.dumps(value)
+              else:
+                  value_str = str(value)
+              template = template.replace(placeholder, value_str)
+
+          with open('ASSIGNMENT.md', 'w') as f:
+              f.write(template)
+
+          print('Generated personalized ASSIGNMENT.md')
+          "
+
+      - name: Commit Variant Files
+        run: |
+          git config user.name "GitHub Classroom"
+          git config user.email "noreply@github.com"
+          git add .variant_config.json ASSIGNMENT.md
+          git commit -m "Generate unique variant for ${{ steps.student.outputs.username }}" || echo "No changes to commit"
+          git push || echo "Nothing to push"
